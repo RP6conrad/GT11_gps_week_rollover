@@ -1,0 +1,53 @@
+import struct
+import glob
+from datetime import datetime
+import os
+print("Active directory : "+os.getcwd())
+print("Searching for .sbp files...")
+for filename in (glob.glob("*.sbp")) :
+    substring="_new.sbp"
+    if substring in filename:
+        pass #print(filename+" converted yet!")  
+    else:       
+        filename_new=filename.replace(".sbp","_new.sbp")
+        if glob.glob(filename_new):
+            print (filename_new + " converted yet !")
+        else :
+               
+            #filename=(glob.glob("*.sbp")[0])
+            new_file_name=filename.replace(".sbp","_new.sbp")
+            file=open(filename,"rb")
+            SBP_header=file.read(64)
+            SBP_frame=file.read(32)
+            bin_file=open(new_file_name, 'wb')
+            bin_file.write(SBP_header)
+            frame_count=0
+            while SBP_frame:
+                SBP_frame=file.read(32)
+                frame_count +=1
+                #check for end of file !!!
+                if len(SBP_frame)<32 :break
+                SBP=struct.unpack('bBhiiiiihhhbb',SBP_frame)
+                second=SBP[3]&63
+                min=(SBP[3]>>6)&63
+                hour=(SBP[3]>>12)&31
+                day=(SBP[3]>>17)&31
+                month=(SBP[3]>>22)%12
+                year=int((SBP[3]>>22)/12+2000)
+                if year>2020 :
+                    print("Recent gps file, no conversion possible!")
+                    bin_file.close()
+                    os.remove(new_file_name)
+                    break
+                dt = datetime(year, month,day, 0, 0)
+                # convert the timestamp to a datetime object in the utc timezone
+                # 1024 weeks = 619315200 seconds
+                new_date = datetime.utcfromtimestamp(dt.timestamp()+619315200)
+                SBP_list=list(SBP)
+                SBP_list[3]=(((new_date.year-2000)*12+new_date.month)<<22)+(new_date.day<<17)+(hour<<12)+(min<<6)+second
+                SBP_new_frame=struct.pack('bBhiiiiihhhbb',SBP_list[0],SBP_list[1],SBP_list[2],SBP_list[3],SBP_list[4],SBP_list[5],SBP_list[6],SBP_list[7],SBP_list[8],SBP_list[9],SBP_list[10],SBP_list[11],SBP_list[12])
+                bin_file.write(SBP_new_frame)
+            bin_file.close()
+            if glob.glob(filename_new):
+                print(new_file_name+" conversion completed : "+str(frame_count)+" frames converted !")
+input()
